@@ -1,11 +1,7 @@
-import { useState } from 'react'
-import { FileText, Youtube, Instagram, Linkedin, Facebook, Twitter, Mic, Mail, Download, Share2, Loader2, Check, Settings, X, Copy } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { FileText, Youtube, Instagram, Linkedin, Facebook, Twitter, Mic, Mail, Download, Share2, Loader2, Check, Settings, X, Copy, Zap, Database, ChevronDown, ChevronUp } from 'lucide-react'
 import OpenAI, { APIError } from 'openai'
-
-const openai = new OpenAI({
-  apiKey: import.meta.env.VITE_OPENAI_API_KEY,
-  dangerouslyAllowBrowser: true,
-})
+import Anthropic from '@anthropic-ai/sdk'
 
 const defaultTemplates = {
   wordpress: {
@@ -42,6 +38,28 @@ const defaultTemplates = {
   },
 };
 
+const models = [
+  {
+    provider: 'OpenAI',
+    models: [
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
+      { id: 'gpt-4', name: 'GPT-4' },
+      { id: 'gpt-4o', name: 'GPT-4o' },
+    ]
+  },
+  {
+    provider: 'Anthropic',
+    models: [
+      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
+      { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
+      { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
+      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
+    ]
+  }
+];
+
+const allModels = models.flatMap(p => p.models);
+
 function App() {
   const [originalContent, setOriginalContent] = useState('')
   const [selectedAssets, setSelectedAssets] = useState({})
@@ -49,7 +67,47 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [copiedAssetId, setCopiedAssetId] = useState(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [templates, setTemplates] = useState(defaultTemplates);
+  const [expandedAssets, setExpandedAssets] = useState({});
+  
+  const [templates, setTemplates] = useState(() => {
+    const savedTemplates = localStorage.getItem('remixer_templates')
+    return savedTemplates ? JSON.parse(savedTemplates) : defaultTemplates
+  });
+
+  const [selectedModel, setSelectedModel] = useState(() => {
+    return localStorage.getItem('remixer_selected_model') || 'gpt-3.5-turbo';
+  });
+
+  const [apiKeys, setApiKeys] = useState(() => {
+    const savedApiKeys = localStorage.getItem('remixer_api_keys')
+    return savedApiKeys ? JSON.parse(savedApiKeys) : {
+      openai: import.meta.env.VITE_OPENAI_API_KEY || '',
+      anthropic: import.meta.env.VITE_ANTHROPIC_API_KEY || ''
+    }
+  })
+
+  useEffect(() => {
+    localStorage.setItem('remixer_templates', JSON.stringify(templates));
+  }, [templates]);
+
+  useEffect(() => {
+    localStorage.setItem('remixer_selected_model', selectedModel);
+  }, [selectedModel]);
+
+  useEffect(() => {
+    localStorage.setItem('remixer_api_keys', JSON.stringify(apiKeys));
+  }, [apiKeys]);
+
+  // Initialize API clients
+  const openai = useMemo(() => new OpenAI({
+    apiKey: apiKeys.openai,
+    dangerouslyAllowBrowser: true,
+  }), [apiKeys.openai])
+
+  const anthropic = useMemo(() => new Anthropic({
+    apiKey: apiKeys.anthropic,
+    dangerouslyAllowBrowser: true,
+  }), [apiKeys.anthropic])
 
   const assets = [
     { id: 'wordpress', name: 'WordPress Post', icon: FileText },
@@ -65,6 +123,13 @@ function App() {
   const handleAssetToggle = (assetId) => {
     setSelectedAssets(prev => ({ ...prev, [assetId]: !prev[assetId] }))
   }
+
+  const handleToggleExpand = (assetId) => {
+    setExpandedAssets(prev => ({
+      ...prev,
+      [assetId]: !prev[assetId]
+    }));
+  };
 
   const handleContentEdit = (assetId, newContent) => {
     setGeneratedContent(prev => ({
@@ -109,6 +174,14 @@ function App() {
       return
     }
 
+    const provider = models.find(p => p.models.some(m => m.id === selectedModel))?.provider.toLowerCase();
+    
+    // Check if API key is set for selected API
+    if (!apiKeys[provider]) {
+      alert(`Please set your ${provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key in the settings.`)
+      return
+    }
+
     setIsGenerating(true)
     setGeneratedContent({})
 
@@ -122,13 +195,24 @@ function App() {
           prompt += `\n\nHere is an example of the desired style:\n${template.example}`;
         }
         
-        const response = await openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.7,
-        })
+        let result;
         
-        const result = response.choices[0].message.content
+        if (provider === 'openai') {
+          const response = await openai.chat.completions.create({
+            model: selectedModel,
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+          })
+          result = response.choices[0].message.content
+        } else if (provider === 'anthropic') {
+          const response = await anthropic.messages.create({
+            model: selectedModel,
+            max_tokens: 2000,
+            messages: [{ role: "user", content: prompt }],
+          })
+          result = response.content[0].text
+        }
+        
         return { assetId, result }
       })
 
@@ -142,13 +226,22 @@ function App() {
 
     } catch (error) {
       console.error("Error generating content:", error)
-      if (error instanceof APIError) {
+      
+      if (provider === 'openai' && error instanceof APIError) {
         if (error.status === 401) {
-          alert("Authentication Error: Please check if your OpenAI API key is correct in your .env.local file. You may need to restart the server after adding the key.");
+          alert("OpenAI Authentication Error: Please check if your OpenAI API key is correct in the settings.");
         } else if (error.status === 429) {
-          alert("Rate Limit Error: You have exceeded your current quota. Please check your plan and billing details on the OpenAI website.");
+          alert("OpenAI Rate Limit Error: You have exceeded your current quota. Please check your plan and billing details.");
         } else {
-          alert(`An API error occurred: ${error.message}`);
+          alert(`OpenAI API error: ${error.message}`);
+        }
+      } else if (provider === 'anthropic' && error.status) {
+        if (error.status === 401) {
+          alert("Anthropic Authentication Error: Please check if your Anthropic API key is correct in the settings.");
+        } else if (error.status === 429) {
+          alert("Anthropic Rate Limit Error: You have exceeded your current quota. Please check your plan and billing details.");
+        } else {
+          alert(`Anthropic API error: ${error.message}`);
         }
       } else {
         alert("An unexpected error occurred. Please check the console for details.")
@@ -196,7 +289,7 @@ function App() {
             className="w-full flex items-center justify-center space-x-2 bg-slate-800 text-slate-300 py-3 px-6 rounded-lg font-semibold hover:bg-slate-700 transition-colors"
           >
             <Settings className="w-5 h-5" />
-            <span>Manage Templates</span>
+            <span>Settings</span>
           </button>
 
           <button
@@ -215,6 +308,16 @@ function App() {
           <div className="space-y-1">
             <h1 className="text-4xl font-bold text-slate-800">Content Remixer</h1>
             <p className="text-slate-500">Your AI-powered content creation studio</p>
+            <div className="flex items-center space-x-2 mt-2">
+              <span className="text-xs text-slate-400">Using:</span>
+              <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                selectedModel.startsWith('gpt') 
+                  ? 'bg-green-100 text-green-700' 
+                  : 'bg-purple-100 text-purple-700'
+              }`}>
+                {allModels.find(m => m.id === selectedModel)?.name || selectedModel}
+              </span>
+            </div>
           </div>
           {Object.keys(generatedContent).length > 0 && !isGenerating && (
             <button
@@ -242,6 +345,7 @@ function App() {
                 const asset = assets.find(a => a.id === assetId)
                 if (!asset) return null
                 const Icon = asset.icon
+                const isExpanded = !!expandedAssets[assetId];
 
                 return (
                   <div key={assetId} className="bg-white rounded-xl p-6 shadow-sm border border-slate-200">
@@ -250,22 +354,46 @@ function App() {
                         <Icon className="w-5 h-5 text-slate-600" />
                       </div>
                       <h3 className="font-semibold text-lg text-slate-800">{asset.name}</h3>
-                      <button 
-                        onClick={() => copyToClipboard(assetId, content)}
-                        className="ml-auto p-2 hover:bg-slate-100 rounded-full"
-                      >
-                        {copiedAssetId === assetId ? (
-                          <Check className="w-5 h-5 text-green-500" />
-                        ) : (
-                          <Copy className="w-5 h-5 text-slate-500" />
-                        )}
-                      </button>
+                      
+                      <div className="ml-auto flex items-center space-x-1">
+                        <button 
+                          onClick={() => copyToClipboard(assetId, content)}
+                          className="p-2 hover:bg-slate-100 rounded-full"
+                          title="Copy content"
+                        >
+                          {copiedAssetId === assetId ? (
+                            <Check className="w-5 h-5 text-green-500" />
+                          ) : (
+                            <Copy className="w-5 h-5 text-slate-500" />
+                          )}
+                        </button>
+                        <button 
+                          onClick={() => handleToggleExpand(assetId)}
+                          className="p-2 hover:bg-slate-100 rounded-full"
+                          title={isExpanded ? 'Collapse' : 'Expand'}
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="w-5 h-5 text-slate-500" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5 text-slate-500" />
+                          )}
+                        </button>
+                      </div>
                     </div>
-                    <textarea
-                      value={content}
-                      onChange={(e) => handleContentEdit(assetId, e.target.value)}
-                      className="w-full h-40 p-4 bg-slate-100 text-slate-800 font-sans text-base border-none rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
+                    {isExpanded ? (
+                      <AutosizeTextarea
+                        value={content}
+                        onChange={(e) => handleContentEdit(assetId, e.target.value)}
+                        className="w-full p-4 bg-slate-100 text-slate-800 font-sans text-base border-none rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
+                      />
+                    ) : (
+                      <div 
+                        className="p-4 bg-slate-50 rounded-lg text-slate-700 text-sm font-sans whitespace-pre-wrap cursor-pointer"
+                        onClick={() => handleToggleExpand(assetId)}
+                      >
+                        {content.substring(0, 200)}{content.length > 200 && '...'}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -285,11 +413,11 @@ function App() {
       {isSettingsOpen && (
         <SettingsModal
           templates={templates}
-          onSave={(newTemplates) => {
-            setTemplates(newTemplates)
-            setIsSettingsOpen(false)
-            // Here you might also save to localStorage or a database
-          }}
+          setTemplates={setTemplates}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          apiKeys={apiKeys}
+          setApiKeys={setApiKeys}
           onClose={() => setIsSettingsOpen(false)}
         />
       )}
@@ -297,16 +425,51 @@ function App() {
   )
 }
 
-function SettingsModal({ templates, onSave, onClose }) {
-  const [currentTemplates, setCurrentTemplates] = useState(templates)
+function AutosizeTextarea({ value, onChange, className, ...props }) {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      // Reset the height to ensure the scrollHeight is calculated correctly.
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={onChange}
+      rows={1}
+      className={`${className} overflow-hidden`}
+      {...props}
+    />
+  );
+}
+
+function SettingsModal({ 
+  templates, setTemplates, 
+  selectedModel, setSelectedModel, 
+  apiKeys, setApiKeys, 
+  onClose 
+}) {
+  const [activeTab, setActiveTab] = useState('api') // 'api' or 'templates'
 
   const handleTemplateChange = (assetId, field, value) => {
-    setCurrentTemplates(prev => ({
+    setTemplates(prev => ({
       ...prev,
       [assetId]: {
         ...prev[assetId],
         [field]: value,
       }
+    }))
+  }
+
+  const handleApiKeyChange = (api, value) => {
+    setApiKeys(prev => ({
+      ...prev,
+      [api]: value
     }))
   }
 
@@ -325,53 +488,143 @@ function SettingsModal({ templates, onSave, onClose }) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col">
         <header className="p-6 border-b flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-slate-800">Manage Content Templates</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Settings</h2>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
             <X className="w-6 h-6 text-slate-600" />
           </button>
         </header>
 
-        <main className="p-6 overflow-y-auto flex-grow">
-          <p className="text-slate-600 mb-6">
-            Customize the prompts used to generate content for each platform. Use 
-            <code className="bg-slate-100 text-slate-800 px-1 py-0.5 rounded-md text-sm font-mono">{"{content}"}</code> 
-            as a placeholder for the original content.
-          </p>
-          <div className="space-y-6">
-            {assetList.map(asset => (
-              <div key={asset.id}>
-                <label htmlFor={`template-prompt-${asset.id}`} className="block text-lg font-semibold text-slate-700 mb-2">{asset.name}</label>
-                <textarea
-                  id={`template-prompt-${asset.id}`}
-                  value={currentTemplates[asset.id]?.prompt || ''}
-                  onChange={(e) => handleTemplateChange(asset.id, 'prompt', e.target.value)}
-                  className="w-full h-24 p-3 font-mono text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder={`e.g., Rewrite this for ${asset.name}: {content}`}
-                />
-                <textarea
-                  id={`template-example-${asset.id}`}
-                  value={currentTemplates[asset.id]?.example || ''}
-                  onChange={(e) => handleTemplateChange(asset.id, 'example', e.target.value)}
-                  className="w-full h-32 p-3 font-mono text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 mt-2"
-                  placeholder="Paste an example of the desired output style here..."
-                />
+        {/* Tab Navigation */}
+        <div className="border-b">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('api')}
+              className={`px-6 py-3 font-semibold text-sm border-b-2 transition-colors ${
+                activeTab === 'api'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Zap className="w-4 h-4" />
+                <span>API Settings</span>
               </div>
-            ))}
+            </button>
+            <button
+              onClick={() => setActiveTab('templates')}
+              className={`px-6 py-3 font-semibold text-sm border-b-2 transition-colors ${
+                activeTab === 'templates'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Database className="w-4 h-4" />
+                <span>Content Templates</span>
+              </div>
+            </button>
           </div>
+        </div>
+
+        <main className="p-6 overflow-y-auto flex-grow">
+          {activeTab === 'api' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">Select AI Model</h3>
+                <p className="text-sm text-slate-500 mb-4">Choose the specific AI model you want to use for content generation.</p>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  {models.map(providerGroup => (
+                    <optgroup key={providerGroup.provider} label={providerGroup.provider}>
+                      {providerGroup.models.map(model => (
+                        <option key={model.id} value={model.id}>
+                          {model.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="openai-key" className="block text-sm font-medium text-slate-700 mb-2">
+                    OpenAI API Key
+                  </label>
+                  <input
+                    id="openai-key"
+                    type="password"
+                    value={apiKeys.openai}
+                    onChange={(e) => handleApiKeyChange('openai', e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">OpenAI Platform</a>
+                  </p>
+                </div>
+
+                <div>
+                  <label htmlFor="anthropic-key" className="block text-sm font-medium text-slate-700 mb-2">
+                    Anthropic API Key
+                  </label>
+                  <input
+                    id="anthropic-key"
+                    type="password"
+                    value={apiKeys.anthropic}
+                    onChange={(e) => handleApiKeyChange('anthropic', e.target.value)}
+                    placeholder="sk-ant-..."
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Get your API key from <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Anthropic Console</a>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'templates' && (
+            <div className="space-y-6">
+              <p className="text-slate-600 mb-6">
+                Customize the prompts used to generate content for each platform. Use 
+                <code className="bg-slate-100 text-slate-800 px-1 py-0.5 rounded-md text-sm font-mono">{"{content}"}</code> 
+                as a placeholder for the original content.
+              </p>
+              <div className="space-y-6">
+                {assetList.map(asset => (
+                  <div key={asset.id}>
+                    <label htmlFor={`template-prompt-${asset.id}`} className="block text-lg font-semibold text-slate-700 mb-2">{asset.name}</label>
+                    <textarea
+                      id={`template-prompt-${asset.id}`}
+                      value={templates[asset.id]?.prompt || ''}
+                      onChange={(e) => handleTemplateChange(asset.id, 'prompt', e.target.value)}
+                      className="w-full h-24 p-3 font-mono text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder={`e.g., Rewrite this for ${asset.name}: {content}`}
+                    />
+                    <textarea
+                      id={`template-example-${asset.id}`}
+                      value={templates[asset.id]?.example || ''}
+                      onChange={(e) => handleTemplateChange(asset.id, 'example', e.target.value)}
+                      className="w-full h-32 p-3 font-mono text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 mt-2"
+                      placeholder="Paste an example of the desired output style here..."
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </main>
         
         <footer className="p-6 border-t bg-slate-100 flex justify-end space-x-4">
           <button 
             onClick={onClose}
-            className="bg-white text-slate-700 px-6 py-2 rounded-lg font-semibold hover:bg-slate-200 border border-slate-300"
-          >
-            Cancel
-          </button>
-          <button 
-            onClick={() => onSave(currentTemplates)}
             className="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700"
           >
-            Save and Close
+            Close
           </button>
         </footer>
       </div>
