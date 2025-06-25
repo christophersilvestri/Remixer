@@ -1,12 +1,109 @@
-# React + Vite
+# Content Remixer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A powerful React application that helps you transform and remix content for different platforms using AI. Perfect for content creators, marketers, and podcast producers who need to adapt their content across multiple channels.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Multi-Platform Content Transformation**: Convert your content for WordPress, YouTube, Instagram, LinkedIn, Facebook, Twitter, podcast, and email
+- **AI-Powered Generation**: Uses OpenAI and Anthropic AI to intelligently remix your content
+- **Custom Templates**: Pre-configured templates for different content types and platforms
+- **Real-time Preview**: See your transformed content before exporting
+- **Export Options**: Copy to clipboard or download your remixed content
+- **Settings Management**: Configure API keys and customize templates
+- **Local Storage**: Saves your templates and settings locally
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+- Node.js (version 16 or higher)
+- npm or yarn
+- OpenAI API key and/or Anthropic API key
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone <your-repo-url>
+cd remixer
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Start the development server:
+```bash
+npm run dev
+```
+
+4. Open your browser and navigate to `http://localhost:5173`
+
+### Configuration
+
+1. Click the Settings icon (⚙️) in the top right
+2. Add your API keys for OpenAI and/or Anthropic
+3. Customize your content templates as needed
+4. Save your settings
+
+## Usage
+
+1. **Input Your Content**: Paste your original content into the main text area
+2. **Select Platform**: Choose which platform you want to remix for
+3. **Generate**: Click the "Remix Content" button to transform your content
+4. **Review & Edit**: Preview the generated content and make any adjustments
+5. **Export**: Copy to clipboard or download your remixed content
+
+## Supported Platforms
+
+- **WordPress**: Blog post formatting with SEO optimization
+- **YouTube**: Video descriptions with timestamps and tool stack
+- **Instagram**: Engaging social media posts with hashtags
+- **LinkedIn**: Professional business-focused posts
+- **Facebook**: Community-oriented posts encouraging discussion
+- **Twitter/X**: Concise, attention-grabbing tweets
+- **Podcast**: Episode descriptions and show notes
+- **Email**: Newsletter-style content formatting
+
+## Tech Stack
+
+- **Frontend**: React 19 with Vite
+- **Styling**: Tailwind CSS
+- **Icons**: Lucide React
+- **AI Integration**: OpenAI API, Anthropic Claude API
+- **Build Tool**: Vite
+
+## Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+### Project Structure
+
+```
+src/
+├── App.jsx          # Main application component
+├── main.jsx         # Application entry point
+├── index.css        # Global styles
+└── assets/          # Static assets
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License.
+
+## Support
+
+For support or questions, please open an issue in the repository.
