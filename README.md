@@ -55,6 +55,15 @@ npm run dev
 4. **Review & Edit**: Preview the generated content and make any adjustments
 5. **Export**: Copy to clipboard or download your remixed content
 
+## Scheduled Posting (Coming Soon)
+
+You will soon be able to:
+
+- **Post Directly to Platforms**: Connect your accounts and publish content to WordPress, YouTube, Instagram, LinkedIn, Facebook, Twitter/X, and more, right from the app.
+- **Schedule Posts**: Select a date and time from a calendar view to schedule your posts for later. The app will automatically publish your content at the scheduled time.
+
+**Note:** Scheduling and direct posting will require connecting your accounts and a backend service to securely store scheduled posts and handle publishing. Stay tuned for updates!
+
 ## Supported Platforms
 
 - **WordPress**: Blog post formatting with SEO optimization
@@ -107,3 +116,21 @@ This project is licensed under the MIT License.
 ## Support
 
 For support or questions, please open an issue in the repository.
+
++## Debugging LinkedIn OAuth
++
++If you encounter issues with LinkedIn OAuth scopes (e.g., unauthorized_scope_error for r_emailaddress):
++
++1. **Check the scope in your backend code** (backend/src/index.ts):
++   - It should be: `const scope = 'w_member_social';`
++2. **Add a debug log** to print the actual LinkedIn OAuth URL being generated:
++   ```js
++   console.log('Redirecting to LinkedIn OAuth URL:', authUrl);
++   ```
++   Place this in the `/auth/linkedin` route handler.
++3. **Restart your backend server** after any code change.
++4. **Visit http://localhost:3001/auth/linkedin** and check your terminal for the printed URL.
++5. **Verify the scope in the printed URL** is only `w_member_social`.
++6. **If the error persists**, ensure no other servers or proxies are running and try in an incognito window.
++
++This helps ensure the correct scope is being sent to LinkedIn and can help debug persistent OAuth errors.
