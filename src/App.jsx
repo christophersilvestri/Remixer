@@ -236,7 +236,7 @@ Challenge conventional thinking
 
 Contain a smart framework, principle, or mental model
 
-Feel “highlightable” (i.e. something a listener would underline or share)
+Feel "highlightable" (i.e. something a listener would underline or share)
 
 Say something in a memorable or unique way
 
@@ -246,7 +246,7 @@ Guidelines:
 
 Prioritize insight and clarity over length. Most quotes should be 1–3 sentences.
 
-Include attribution only if needed for clarity (e.g., "That’s why we built Synthetic Users…”).
+Include attribution only if needed for clarity (e.g., "That's why we built Synthetic Users…").
 
 Exclude generic comments, greetings, or host interjections.
 
@@ -283,6 +283,12 @@ const models = [
       { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
       { id: 'claude-3-5-sonnet-20240620', name: 'Claude 3.5 Sonnet' },
       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+      { id: 'claude-3-7-sonnet-20250219', name: 'Claude Sonnet 3.7' },
+      { id: 'claude-3-7-sonnet-latest', name: 'Claude Sonnet 3.7 (Latest)' },
+      { id: 'claude-3-5-haiku-20241022', name: 'Claude Haiku 3.5' },
+      { id: 'claude-3-5-haiku-latest', name: 'Claude Haiku 3.5 (Latest)' },
     ]
   }
 ];
